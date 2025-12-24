@@ -94,7 +94,7 @@
       <span class="dot" id="statDot"></span>
       <div>
         <div><b>Status:</b> <span id="statText">Ready</span></div>
-        <div class="mini" id="statSub">Open via QR link or enter Track ID + Contract and click “Load History”.</div>
+        <div class="mini" id="statSub">Open via QR link (auto-load) or enter Track ID + Contract and click “Load History”.</div>
       </div>
     </div>
 
@@ -133,7 +133,6 @@
   const SEPOLIA_CHAIN_ID = 11155111n;
   const DEFAULT_CONTRACT = "0xA71127195782af7C6b65F50e5eaa480991F0e2E6";
 
-  // ✅ RPC fallback list (if one fails, try next)
   const RPC_URLS = [
     "https://rpc.sepolia.org",
     "https://ethereum-sepolia-rpc.publicnode.com",
@@ -209,7 +208,6 @@
     for(const url of RPC_URLS){
       try{
         const p = new ethers.JsonRpcProvider(url, SEPOLIA_CHAIN_ID);
-        // quick ping
         const net = await p.getNetwork();
         if(net.chainId !== SEPOLIA_CHAIN_ID) throw new Error("Not Sepolia");
         $("rpcUsed").innerText = url;
@@ -312,7 +310,7 @@
     $("showContract").innerText = $("contractAddr").value || "—";
     $("rpcUsed").innerText = "—";
 
-    setStatus("warn","Ready","If opened from QR, click “Load History”.");
+    setStatus("warn","Ready","If opened from QR, it will auto-load.");
     if(p.trackId){
       loadHistory().catch(()=>{});
     }
