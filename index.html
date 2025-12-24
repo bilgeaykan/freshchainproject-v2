@@ -322,6 +322,9 @@
   const CONTRACT_ADDRESS = "0xA71127195782af7C6b65F50e5eaa480991F0e2E6";
   const SEPOLIA_CHAIN_ID = 11155111n;
 
+  // ✅ IMPORTANT: absolute base URL for QR (phone camera scanners need absolute URLs)
+  const SITE_BASE_URL = "https://bilgeaykan.github.io/freshchainproject-v2/";
+
   const ABI = [
     {
       "inputs": [
@@ -463,13 +466,10 @@
       "name": "TransporterRegistered",
       "type": "event"
     },
-
     { "inputs": [], "name": "batchCount", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
     { "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "name": "batchExists", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
     { "inputs": [{ "internalType": "uint256", "name": "index", "type": "uint256" }], "name": "batchIdAt", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
-
     { "inputs": [{ "internalType": "address", "name": "", "type": "address" }], "name": "distributors", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
-
     {
       "inputs": [{ "internalType": "uint256", "name": "batchId", "type": "uint256" }],
       "name": "getBatchHistory",
@@ -498,7 +498,6 @@
       "stateMutability": "view",
       "type": "function"
     },
-
     {
       "inputs": [{ "internalType": "uint256", "name": "batchId", "type": "uint256" }],
       "name": "getBatchInfo",
@@ -514,9 +513,7 @@
       "stateMutability": "view",
       "type": "function"
     },
-
     { "inputs": [{ "internalType": "uint256", "name": "batchId", "type": "uint256" }], "name": "getOwnershipHistory", "outputs": [{ "internalType": "address[]", "name": "", "type": "address[]" }], "stateMutability": "view", "type": "function" },
-
     {
       "inputs": [{ "internalType": "uint256", "name": "batchId", "type": "uint256" }],
       "name": "getSensorLogs",
@@ -536,9 +533,7 @@
       "stateMutability": "view",
       "type": "function"
     },
-
     { "inputs": [], "name": "listBatches", "outputs": [{ "internalType": "uint256[]", "name": "", "type": "uint256[]" }], "stateMutability": "view", "type": "function" },
-
     { "inputs": [], "name": "owner", "outputs": [{ "internalType": "address", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "", "type": "address" }], "name": "producers", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "", "type": "address" }], "name": "retailers", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
@@ -668,10 +663,10 @@
     }
   }
 
+  // ✅ FIXED: absolute link for QR (so phone doesn't treat it as a search query)
   function getHistoryLink(trackId){
-    const base = "history.html";
     const cid = CONTRACT_ADDRESS;
-    return `${base}?trackId=${encodeURIComponent(trackId)}&contract=${encodeURIComponent(cid)}`;
+    return `${SITE_BASE_URL}history.html?trackId=${encodeURIComponent(trackId)}&contract=${encodeURIComponent(cid)}`;
   }
 
   async function loadBatches(){
@@ -939,7 +934,7 @@
     const id = ($("batchIdQR").value || "").trim();
     if(!id) return alert("Enter Batch ID.");
     $("qrcode").innerHTML = "";
-    const link = getHistoryLink(id);
+    const link = getHistoryLink(id); // ✅ absolute link
     new QRCode($("qrcode"), { text: link, width:160, height:160 });
     log(`QR generated for trackId=${id} -> ${link}`);
   }
