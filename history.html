@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FreshChain — Public History Page</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1020; --card:#111a33;
+      --text:#e8ecff; --muted:#aab3d6; --line:#22315f;
+      --ok:#55f2a5; --warn:#ffd166; --bad:#ff5c7a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: radial-gradient(1200px 700px at 10% 0%, #13235a 0%, var(--bg) 55%, #070a14 100%);
+      color:var(--text);
+    }
+    .wrap{max-width:980px; margin:0 auto; padding:22px}
+    .card{
+      border:1px solid var(--line); border-radius:16px;
+      background:linear-gradient(180deg, rgba(17,26,51,.90), rgba(15,23,48,.86));
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+      padding:14px;
+    }
+    h1{margin:0; font-size:22px}
+    .mini{font-size:12px; color:var(--muted); line-height:1.45}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px}
+    input{
+      background:rgba(7,10,20,.6); border:1px solid var(--line); color:var(--text);
+      padding:10px 10px; border-radius:12px; outline:none; min-width:280px;
+    }
+    input:focus{border-color:#3b5cff}
+    .btn{
+      border:1px solid var(--line);
+      background:rgba(7,10,20,.35);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .btn.primary{
+      border:none;
+      background: linear-gradient(180deg, rgba(76,125,255,.95), rgba(76,125,255,.75));
+      color:white;
+    }
+    .status{
+      border:1px solid var(--line); border-radius:14px; padding:10px 12px;
+      background:rgba(7,10,20,.5); font-size:13px; color:var(--muted);
+      display:flex; gap:8px; align-items:flex-start; margin-top:10px;
+    }
+    .dot{width:10px; height:10px; border-radius:50%; margin-top:4px; background:var(--warn)}
+    .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+    .kv{display:grid; grid-template-columns: 160px 1fr; gap:6px 10px; font-size:13px; width:100%}
+    .kv div:nth-child(odd){color:var(--muted)}
+    pre{
+      margin:12px 0 0;
+      padding:12px;
+      background:rgba(7,10,20,.55);
+      border:1px solid var(--line);
+      border-radius:14px;
+      color:#e9eeff;
+      overflow:auto;
+      white-space:pre-wrap;
+      word-break:break-word;
+      font-size:12.5px;
+      line-height:1.45;
+      max-height:520px;
+    }
+    .hr{height:1px; background:var(--line); margin:12px 0}
+    .tag{
+      display:inline-block; padding:5px 8px; border-radius:999px; border:1px solid var(--line);
+      color:var(--muted); font-size:12px; background:rgba(7,10,20,.35)
+    }
+    a{color:#9bb6ff}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>FreshChain — Public History Page</h1>
+    <p class="mini">
+      Public page (no MetaMask, no login). Reads from Sepolia via read-only RPC with fallback.
+      <span class="tag">V2 requirement</span>
+    </p>
+
+    <div class="status">
+      <span class="dot" id="statDot"></span>
+      <div>
+        <div><b>Status:</b> <span id="statText">Ready</span></div>
+        <div class="mini" id="statSub">Open via QR link or enter Track ID + Contract and click “Load History”.</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <input id="trackId" placeholder="trackId (Batch ID) e.g. 101" />
+      <input id="contractAddr" placeholder="contract address (0x...)" />
+      <button class="btn primary" onclick="loadHistory()">Load History</button>
+      <button class="btn" onclick="useDefaults()">Use Defaults</button>
+    </div>
+
+    <div class="mini" style="margin-top:8px">
+      URL format: <span class="tag">history.html?trackId=101&contract=0x...</span>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="status">
+      <span class="dot ok"></span>
+      <div class="kv">
+        <div>Network</div><div>Sepolia (11155111)</div>
+        <div>RPC in use</div><div id="rpcUsed">—</div>
+        <div>Track ID</div><div id="showTrack">—</div>
+        <div>Contract</div><div id="showContract">—</div>
+      </div>
+    </div>
+
+    <pre id="out">History output will appear here…</pre>
+
+    <div class="mini" style="margin-top:10px">
+      Back to dApp: <a href="index.html">index.html</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SEPOLIA_CHAIN_ID = 11155111n;
+  const DEFAULT_CONTRACT = "0xA71127195782af7C6b65F50e5eaa480991F0e2E6";
+
+  // ✅ RPC fallback list (if one fails, try next)
+  const RPC_URLS = [
+    "https://rpc.sepolia.org",
+    "https://ethereum-sepolia-rpc.publicnode.com",
+    "https://sepolia.drpc.org",
+    "https://1rpc.io/sepolia"
+  ];
+
+  const ABI_READ = [
+    {
+      "inputs": [{"internalType":"uint256","name":"batchId","type":"uint256"}],
+      "name":"getBatchHistory",
+      "outputs":[
+        {"internalType":"uint256","name":"_batchId","type":"uint256"},
+        {"internalType":"string","name":"productName","type":"string"},
+        {"internalType":"uint256","name":"quantity","type":"uint256"},
+        {"internalType":"address","name":"producer","type":"address"},
+        {"internalType":"address","name":"currentOwner","type":"address"},
+        {"internalType":"bool","name":"arrived","type":"bool"},
+        {"internalType":"bool","name":"passedInspection","type":"bool"},
+        {"internalType":"uint8","name":"stage","type":"uint8"},
+        {"internalType":"address[]","name":"ownershipHistory","type":"address[]"},
+        {
+          "components":[
+            {"internalType":"int256","name":"temperature","type":"int256"},
+            {"internalType":"int256","name":"humidity","type":"int256"},
+            {"internalType":"string","name":"location","type":"string"},
+            {"internalType":"uint256","name":"timestamp","type":"uint256"}
+          ],
+          "internalType":"tuple[]",
+          "name":"sensorLogs",
+          "type":"tuple[]"
+        }
+      ],
+      "stateMutability":"view",
+      "type":"function"
+    }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+
+  function setStatus(state, main, sub=""){
+    $("statText").innerText = main;
+    $("statSub").innerText = sub;
+    const dot = $("statDot");
+    dot.classList.remove("ok","bad");
+    if(state === "ok") dot.classList.add("ok");
+    else if(state === "bad") dot.classList.add("bad");
+  }
+
+  function stageToText(stage){
+    const map = { 0:"None", 1:"CreatedByProducer", 2:"InTransport", 3:"InWarehouse", 4:"InShop" };
+    return map[Number(stage)] ?? `Stage(${stage})`;
+  }
+
+  function getParams(){
+    const u = new URL(window.location.href);
+    return {
+      trackId: u.searchParams.get("trackId") || "",
+      contract: u.searchParams.get("contract") || ""
+    };
+  }
+
+  function useDefaults(){
+    $("trackId").value = "101";
+    $("contractAddr").value = DEFAULT_CONTRACT;
+    $("showTrack").innerText = "101";
+    $("showContract").innerText = DEFAULT_CONTRACT;
+    setStatus("warn","Defaults loaded","Click “Load History”.");
+  }
+
+  async function makeProviderWithFallback(){
+    let lastErr = null;
+    for(const url of RPC_URLS){
+      try{
+        const p = new ethers.JsonRpcProvider(url, SEPOLIA_CHAIN_ID);
+        // quick ping
+        const net = await p.getNetwork();
+        if(net.chainId !== SEPOLIA_CHAIN_ID) throw new Error("Not Sepolia");
+        $("rpcUsed").innerText = url;
+        return p;
+      }catch(e){
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("All RPC endpoints failed");
+  }
+
+  async function loadHistory(){
+    try{
+      const trackIdRaw = ($("trackId").value || "").trim();
+      const contractAddr = ($("contractAddr").value || "").trim();
+
+      if(!trackIdRaw) return alert("Enter trackId (Batch ID), e.g. 101");
+      if(!contractAddr || !contractAddr.startsWith("0x") || contractAddr.length < 40){
+        return alert("Enter a valid contract address (0x...)");
+      }
+
+      $("showTrack").innerText = trackIdRaw;
+      $("showContract").innerText = contractAddr;
+
+      setStatus("warn","Loading…","Trying RPC endpoints (fallback).");
+      $("out").textContent = "Loading…";
+      $("rpcUsed").innerText = "—";
+
+      const provider = await makeProviderWithFallback();
+      const c = new ethers.Contract(contractAddr, ABI_READ, provider);
+
+      const trackId = BigInt(trackIdRaw);
+      const data = await c.getBatchHistory(trackId);
+
+      const _batchId = data[0];
+      const productName = data[1];
+      const quantity = data[2];
+      const producer = data[3];
+      const currentOwner = data[4];
+      const arrived = data[5];
+      const passedInspection = data[6];
+      const stage = data[7];
+      const ownershipHistory = data[8];
+      const sensorLogs = data[9];
+
+      let out = "";
+      out += `FreshChain — Public Full History\n`;
+      out += `========================================\n`;
+      out += `Contract     : ${contractAddr}\n`;
+      out += `Track ID     : ${_batchId}\n`;
+      out += `Product Name : ${productName}\n`;
+      out += `Quantity     : ${quantity}\n`;
+      out += `Producer     : ${producer}\n`;
+      out += `CurrentOwner : ${currentOwner}\n`;
+      out += `Stage        : ${stageToText(stage)}\n`;
+      out += `Arrived      : ${arrived ? "YES ✅" : "NO ⏳"}\n`;
+      out += `Inspection   : ${arrived ? (passedInspection ? "PASSED ✅" : "FAILED ❌") : "—"}\n`;
+
+      out += `\nOwnership History\n`;
+      out += `----------------------------------------\n`;
+      if(!ownershipHistory || ownershipHistory.length === 0){
+        out += `No ownership history.\n`;
+      } else {
+        ownershipHistory.forEach((a, i) => {
+          const isLast = i === ownershipHistory.length - 1;
+          out += `${String(i+1).padStart(2,"0")}. ${a}${isLast ? "  (Current)" : ""}\n`;
+        });
+      }
+
+      out += `\nSensor Logs (Transport)\n`;
+      out += `----------------------------------------\n`;
+      if(!sensorLogs || sensorLogs.length === 0){
+        out += `No sensor logs.\n`;
+      } else {
+        sensorLogs.forEach((s, i) => {
+          const temp = s.temperature ?? s[0];
+          const hum  = s.humidity ?? s[1];
+          const loc  = s.location ?? s[2];
+          const ts   = s.timestamp ?? s[3];
+          const dt = new Date(Number(ts) * 1000).toLocaleString();
+          out += `#${i+1} | Temp: ${temp}°C | Hum: ${hum}% | Loc: ${loc} | Time: ${dt}\n`;
+        });
+      }
+
+      $("out").textContent = out;
+      setStatus("ok","Loaded ✅","History successfully read from blockchain.");
+    }catch(e){
+      console.error(e);
+      $("out").textContent = "Error: " + (e?.message || e);
+      setStatus("bad","Error ❌", e?.message || "Failed to load history.");
+    }
+  }
+
+  (function init(){
+    const p = getParams();
+    $("trackId").value = p.trackId || "";
+    $("contractAddr").value = p.contract || DEFAULT_CONTRACT;
+
+    $("showTrack").innerText = $("trackId").value || "—";
+    $("showContract").innerText = $("contractAddr").value || "—";
+    $("rpcUsed").innerText = "—";
+
+    setStatus("warn","Ready","If opened from QR, click “Load History”.");
+    if(p.trackId){
+      loadHistory().catch(()=>{});
+    }
+  })();
+</script>
+</body>
+</html>
