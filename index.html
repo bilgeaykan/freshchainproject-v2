@@ -3,183 +3,954 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>FreshChain — Public History Page</title>
+  <title>FreshChain — Food Traceability dApp</title>
 
+  <!-- ethers v6 -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.umd.min.js"></script>
+
+  <!-- QR generator -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <!-- QR scanner (camera) -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
 
   <style>
     :root{
-      --bg:#0b1020; --card:#111a33;
+      --bg:#0b1020; --card:#111a33; --card2:#0f1730;
       --text:#e8ecff; --muted:#aab3d6; --line:#22315f;
-      --ok:#55f2a5; --warn:#ffd166; --bad:#ff5c7a;
+      --ok:#55f2a5; --warn:#ffd166; --bad:#ff5c7a; --btn:#4c7dff;
     }
     *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: radial-gradient(1200px 700px at 10% 0%, #13235a 0%, var(--bg) 55%, #070a14 100%);
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: radial-gradient(1200px 700px at 10% 0%, #13235a 0%, var(--bg) 50%, #070a14 100%);
       color:var(--text);
     }
-    .wrap{max-width:980px; margin:0 auto; padding:22px}
-    .card{
-      border:1px solid var(--line); border-radius:16px;
-      background:linear-gradient(180deg, rgba(17,26,51,.90), rgba(15,23,48,.86));
+    .wrap{max-width:1100px; margin:0 auto; padding:22px}
+    header{display:flex; gap:14px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;}
+    .title h1{margin:0; font-size:26px; letter-spacing:.3px}
+    .title p{margin:6px 0 0; color:var(--muted); font-size:14px; line-height:1.45}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line);
+      border-radius:999px; background:rgba(17,26,51,.55); color:var(--muted); font-size:13px;}
+    .grid{display:grid; grid-template-columns: 1.2fr .8fr; gap:16px; margin-top:16px}
+    @media (max-width: 920px){ .grid{grid-template-columns:1fr} }
+
+    .card{border:1px solid var(--line); border-radius:16px; background:linear-gradient(180deg, rgba(17,26,51,.86), rgba(15,23,48,.86));
       box-shadow: 0 18px 60px rgba(0,0,0,.35);
       padding:14px;
     }
-    h1{margin:0; font-size:22px}
-    .mini{font-size:12px; color:var(--muted); line-height:1.45}
-    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px}
-    input{
+    .card h2{margin:0 0 10px; font-size:16px; color:#dfe6ff}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    label{font-size:12px; color:var(--muted)}
+    input, select, textarea{
       background:rgba(7,10,20,.6); border:1px solid var(--line); color:var(--text);
-      padding:10px 10px; border-radius:12px; outline:none; min-width:280px;
+      padding:10px 10px; border-radius:12px; outline:none; min-width:180px;
     }
-    input:focus{border-color:#3b5cff}
+    input:focus, select:focus, textarea:focus{border-color:#3b5cff}
+    textarea{width:100%; min-height:90px; resize:vertical}
     .btn{
-      border:1px solid var(--line);
-      background:rgba(7,10,20,.35);
-      color:var(--text);
-      padding:10px 12px;
-      border-radius:12px;
-      cursor:pointer;
-      font-weight:600;
-    }
-    .btn.primary{
-      border:none;
       background: linear-gradient(180deg, rgba(76,125,255,.95), rgba(76,125,255,.75));
-      color:white;
+      border:none; color:white; padding:10px 12px; border-radius:12px;
+      cursor:pointer; font-weight:600; letter-spacing:.2px;
     }
+    .btn:disabled{opacity:.55; cursor:not-allowed}
+    .btn.secondary{background:transparent; border:1px solid var(--line); color:var(--text)}
+    .btn.danger{background: linear-gradient(180deg, rgba(255,92,122,.92), rgba(255,92,122,.70))}
+    .mini{font-size:12px; color:var(--muted)}
+    .kv{display:grid; grid-template-columns: 160px 1fr; gap:6px 10px; font-size:13px}
+    .kv div:nth-child(odd){color:var(--muted)}
     .status{
       border:1px solid var(--line); border-radius:14px; padding:10px 12px;
       background:rgba(7,10,20,.5); font-size:13px; color:var(--muted);
-      display:flex; gap:8px; align-items:flex-start; margin-top:10px;
+      display:flex; gap:8px; align-items:flex-start;
     }
     .dot{width:10px; height:10px; border-radius:50%; margin-top:4px; background:var(--warn)}
     .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
-    .kv{display:grid; grid-template-columns: 160px 1fr; gap:6px 10px; font-size:13px; width:100%}
-    .kv div:nth-child(odd){color:var(--muted)}
+    .hide{display:none !important}
     pre{
-      margin:12px 0 0;
-      padding:12px;
-      background:rgba(7,10,20,.55);
-      border:1px solid var(--line);
-      border-radius:14px;
-      color:#e9eeff;
-      overflow:auto;
-      white-space:pre-wrap;
-      word-break:break-word;
-      font-size:12.5px;
-      line-height:1.45;
-      max-height:520px;
+      margin:10px 0 0; padding:12px; background:rgba(7,10,20,.55); border:1px solid var(--line);
+      border-radius:14px; color:#e9eeff; overflow:auto; max-height:420px;
+      white-space:pre-wrap; word-break:break-word;
+      font-size:12.5px; line-height:1.45;
     }
     .hr{height:1px; background:var(--line); margin:12px 0}
-    .tag{
-      display:inline-block; padding:5px 8px; border-radius:999px; border:1px solid var(--line);
-      color:var(--muted); font-size:12px; background:rgba(7,10,20,.35)
+    .tag{display:inline-block; padding:5px 8px; border-radius:999px; border:1px solid var(--line);
+      color:var(--muted); font-size:12px; background:rgba(7,10,20,.35)}
+    .good{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+    .two{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
+    @media (max-width: 720px){ .two{grid-template-columns:1fr} }
+    #qrBox { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start}
+    #qrcode { padding:10px; background:white; border-radius:12px }
+    #reader { width: 340px; border-radius:12px; overflow:hidden; border:1px solid var(--line) }
+
+    /* small helper badge */
+    .badge{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(7,10,20,.35);
+      color:var(--muted);
+      font-size:12px;
     }
-    a{color:#9bb6ff}
   </style>
 </head>
 
 <body>
 <div class="wrap">
-  <div class="card">
-    <h1>FreshChain — Public History Page</h1>
-    <p class="mini">
-      Public page (no MetaMask, no login). Reads from Sepolia via read-only RPC with fallback.
-      <span class="tag">V2 requirement</span>
-    </p>
-
-    <div class="status">
-      <span class="dot" id="statDot"></span>
-      <div>
-        <div><b>Status:</b> <span id="statText">Ready</span></div>
-        <div class="mini" id="statSub">Open via QR link (auto-load) or enter Track ID + Contract and click “Load History”.</div>
-      </div>
+  <header>
+    <div class="title">
+      <h1>FreshChain — Blockchain Food Traceability</h1>
+      <p>
+        Supply chain on Ethereum <span class="tag">Sepolia</span> (Producer → Transporter → Distributor → Retailer).
+        Customers scan a QR code to view the <b>public history page</b> (no MetaMask): ownership, sensor logs, and inspection.
+      </p>
     </div>
 
     <div class="row">
-      <input id="trackId" placeholder="trackId (Batch ID) e.g. 101" />
-      <input id="contractAddr" placeholder="contract address (0x...)" />
-      <button class="btn primary" onclick="loadHistory()">Load History</button>
-      <button class="btn" onclick="useDefaults()">Use Defaults</button>
+      <button class="btn" id="btnConnect" onclick="connectWallet()">Connect Wallet</button>
+      <button class="btn secondary" onclick="switchToSepolia()">Switch to Sepolia</button>
+      <span class="badge" id="loginBadge">Login: not required for Customer</span>
     </div>
+  </header>
 
-    <div class="mini" style="margin-top:8px">
-      URL format: <span class="tag">history.html?trackId=101&contract=0x...</span>
-    </div>
+  <div class="grid">
+    <!-- Left: Controls -->
+    <div class="card">
+      <h2>1) Connection & Identity</h2>
 
-    <div class="hr"></div>
+      <div class="two">
+        <div class="status" id="connStatus">
+          <span class="dot" id="connDot"></span>
+          <div>
+            <div><b>Status:</b> <span id="statusText">Not connected</span></div>
+            <div class="mini" id="statusSub">Connect with MetaMask.</div>
+          </div>
+        </div>
 
-    <div class="status">
-      <span class="dot ok"></span>
-      <div class="kv">
-        <div>Network</div><div>Sepolia (11155111)</div>
-        <div>RPC in use</div><div id="rpcUsed">—</div>
-        <div>Track ID</div><div id="showTrack">—</div>
-        <div>Contract</div><div id="showContract">—</div>
+        <div class="status">
+          <span class="dot ok"></span>
+          <div class="kv" style="width:100%">
+            <div>Wallet</div><div id="walletAddr">—</div>
+            <div>Network</div><div id="networkName">—</div>
+            <div>Chain ID</div><div id="chainId">—</div>
+            <div>Contract</div><div id="contractAddr">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <h2>2) Select User Type (Role-Based Menu)</h2>
+      <div class="row">
+        <select id="userType" onchange="applyRoleUI()">
+          <option value="admin">Admin</option>
+          <option value="producer">Producer</option>
+          <option value="transporter">Transporter</option>
+          <option value="distributor">Distributor</option>
+          <option value="retailer">Retailer</option>
+          <option value="customer">Customer</option>
+        </select>
+
+        <!-- ✅ V2 requirement: predefined demo credentials + auto-filled -->
+        <input id="userId" placeholder="ID (demo)" />
+        <input id="userPw" placeholder="PASSWORD (demo)" type="password" />
+        <button class="btn secondary" onclick="demoLogin()">Login</button>
+        <span class="mini" id="loginNote">Auto-filled demo credentials. Login gates write actions.</span>
+      </div>
+
+      <div class="hr"></div>
+
+      <!-- ADMIN -->
+      <div id="secAdmin" class="card" style="padding:12px; background:rgba(17,26,51,.55);">
+        <h2>Admin Panel — Actor Registration</h2>
+        <div class="row">
+          <input id="roleAddress" placeholder="Actor Wallet Address (0x...)" style="min-width:360px"/>
+          <select id="roleType">
+            <option value="producer">Producer</option>
+            <option value="transporter">Transporter</option>
+            <option value="distributor">Distributor</option>
+            <option value="retailer">Retailer</option>
+          </select>
+          <button class="btn gate" id="btnRegisterRole" onclick="registerRole()">Register</button>
+        </div>
+        <div class="mini">
+          Note: Registration works only when you are connected with the <b>Owner/Admin</b> wallet (enforced by contract).
+        </div>
+      </div>
+
+      <!-- PRODUCER -->
+      <div id="secProducer" class="card hide" style="margin-top:12px; padding:12px; background:rgba(17,26,51,.55);">
+        <h2>Producer — Create Batch</h2>
+        <div class="row">
+          <input id="batchIdCreate" type="number" placeholder="Batch ID (integer)" />
+          <input id="productName" placeholder="Product Name (e.g. Tomatoes)" style="min-width:260px"/>
+          <input id="quantity" type="number" placeholder="Quantity (e.g. 100)" />
+          <button class="btn gate" id="btnCreateBatch" onclick="createBatch()">Create</button>
+        </div>
+        <div class="mini">
+          Tip: Batch ID must be unique. After creation, the producer becomes the first owner.
+        </div>
+      </div>
+
+      <!-- TRANSFER (used by Producer/Transporter/Distributor) -->
+      <div id="secTransfer" class="card hide" style="margin-top:12px; padding:12px; background:rgba(17,26,51,.55);">
+        <h2>Ownership Transfer — Ordered Flow</h2>
+        <div class="mini">
+          Flow: <b>Producer → Transporter → Distributor → Retailer</b> (enforced by the smart contract).
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="batchIdTransfer" type="number" placeholder="Batch ID" />
+          <input id="newOwner" placeholder="New Owner Address (0x...)" style="min-width:360px"/>
+          <button class="btn gate" id="btnTransfer" onclick="transferOwnership()">Transfer</button>
+        </div>
+      </div>
+
+      <!-- TRANSPORTER -->
+      <div id="secTransporter" class="card hide" style="margin-top:12px; padding:12px; background:rgba(17,26,51,.55);">
+        <h2>Transporter — Sensor Log</h2>
+        <div class="row">
+          <input id="batchIdSensor" type="number" placeholder="Batch ID" />
+          <input id="temp" type="number" placeholder="Temperature (°C) [-10..40]" />
+          <input id="hum" type="number" placeholder="Humidity (%) [0..40]" />
+          <input id="location" placeholder="Location (e.g. Bursa)" style="min-width:260px"/>
+          <button class="btn gate" id="btnAddSensor" onclick="addSensor()">Add Sensor Data</button>
+        </div>
+        <div class="mini">
+          Validation: temp -10..40, humidity 0..40 (UI + contract). (If asked: demo sensor spec.)
+        </div>
+      </div>
+
+      <!-- RETAILER -->
+      <div id="secRetailer" class="card hide" style="margin-top:12px; padding:12px; background:rgba(17,26,51,.55);">
+        <h2>Retailer — Final Inspection & Arrival</h2>
+        <div class="row">
+          <input id="batchIdArrived" type="number" placeholder="Batch ID" />
+          <select id="passedInspection">
+            <option value="true">Passed Inspection ✅</option>
+            <option value="false">Failed Inspection ❌</option>
+          </select>
+          <button class="btn gate" id="btnArrived" onclick="markArrived()">Mark As Arrived</button>
+        </div>
+        <div class="mini">
+          Note: Retailer must own the batch and the stage must be “InShop”.
+        </div>
+      </div>
+
+      <!-- CUSTOMER -->
+      <div id="secCustomer" class="card hide" style="margin-top:12px; padding:12px; background:rgba(17,26,51,.55);">
+        <h2>Customer — QR Scan / View Full History</h2>
+
+        <div class="row">
+          <input id="batchIdView" type="number" placeholder="Batch ID" />
+          <button class="btn" onclick="viewFullHistory()">View Full History (dApp)</button>
+          <button class="btn secondary" onclick="copyOutput()">Copy Output</button>
+        </div>
+
+        <div class="mini" style="margin-top:6px">
+          Customers can use the <b>Public History Page</b> (no MetaMask) via QR link: <span class="tag">history.html</span>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="two">
+          <div>
+            <div class="mini">Generate QR (Public History Link)</div>
+            <div class="row" style="margin-top:6px">
+              <input id="batchIdQR" type="number" placeholder="Batch ID to generate QR" />
+              <button class="btn secondary" onclick="generateQR()">Generate QR</button>
+            </div>
+            <div id="qrBox" style="margin-top:10px">
+              <div id="qrcode"></div>
+              <div class="mini">
+                QR content: <b>public history page link</b> (opens in browser without MetaMask).
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="mini">Scan QR (Camera)</div>
+            <div class="row" style="margin-top:6px">
+              <button class="btn secondary" id="btnStartScan" onclick="startScan()">Start Scan</button>
+              <button class="btn danger" id="btnStopScan" onclick="stopScan()" disabled>Stop</button>
+            </div>
+            <div style="margin-top:10px" id="reader"></div>
+            <div class="mini" id="scanHint" style="margin-top:8px">
+              After scanning, TrackID (Batch ID) will be filled automatically.
+            </div>
+          </div>
+        </div>
+
+        <pre id="output">Output will appear here…</pre>
       </div>
     </div>
 
-    <pre id="out">History output will appear here…</pre>
+    <!-- Right: Quick actions + logs -->
+    <div class="card">
+      <h2>Transaction Log</h2>
+      <div class="mini">Tx hashes and important messages will appear here.</div>
+      <pre id="log"></pre>
 
-    <div class="mini" style="margin-top:10px">
-      Back to dApp: <a href="index.html">index.html</a>
+      <div class="hr"></div>
+
+      <h2>V2 — Batch List (LIST BATCHES)</h2>
+      <div class="mini">
+        Uses <b>batchCount</b>, <b>listBatches</b>, and <b>batchIdAt</b> to list all batches.
+        Predefined batches should include: <b>101, 202, 303</b>.
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <button class="btn secondary" onclick="loadBatches()">Load Batches</button>
+        <button class="btn secondary" onclick="showPredefined()">Show Predefined (101/202/303)</button>
+      </div>
+
+      <div class="status" style="margin-top:10px">
+        <span class="dot ok"></span>
+        <div class="kv" style="width:100%">
+          <div>Total Batches</div><div id="batchTotal">—</div>
+          <div>Predefined</div><div id="predefStatus">—</div>
+        </div>
+      </div>
+
+      <pre id="batchListOut">Batch list output will appear here…</pre>
+
+      <div class="hr"></div>
+
+      <h2>Quick Checks</h2>
+      <div class="row">
+        <button class="btn secondary" onclick="readMyRole()">My Role?</button>
+        <button class="btn secondary" onclick="pingContract()">Contract OK?</button>
+      </div>
+      <div class="mini" style="margin-top:8px">
+        “My Role?” reads role mappings from the contract to show your wallet role.
+      </div>
     </div>
   </div>
 </div>
 
 <script>
+  // =========================
+  // CONFIG
+  // =========================
+  const CONTRACT_ADDRESS = "0xA71127195782af7C6b65F50e5eaa480991F0e2E6";
   const SEPOLIA_CHAIN_ID = 11155111n;
-  const DEFAULT_CONTRACT = "0xA71127195782af7C6b65F50e5eaa480991F0e2E6";
 
-  const RPC_URLS = [
-    "https://rpc.sepolia.org",
-    "https://ethereum-sepolia-rpc.publicnode.com",
-    "https://sepolia.drpc.org",
-    "https://1rpc.io/sepolia"
-  ];
+  // absolute base URL for QR (phone camera scanners need absolute URLs)
+  const SITE_BASE_URL = "https://bilgeaykan.github.io/freshchainproject-v2/";
 
-  const ABI_READ = [
+  // ✅ V2 DEMO CREDENTIALS (auto-filled)
+  // Instructor flow: select role -> auto-filled -> press Login -> press buttons.
+  const DEMO = {
+    admin:       { id: "admin",       pw: "1234" },
+    producer:    { id: "producer",    pw: "1234" },
+    transporter: { id: "transporter", pw: "1234" },
+    distributor: { id: "distributor", pw: "1234" },
+    retailer:    { id: "retailer",    pw: "1234" },
+    customer:    { id: "",            pw: "" }
+  };
+
+  // Auth state (UI gate only; on-chain auth is enforced by the contract)
+  let isLoggedIn = false;
+  let loggedRole = "customer";
+
+  const ABI = [ /* --- keep your ABI exactly as before --- */ 
     {
-      "inputs": [{"internalType":"uint256","name":"batchId","type":"uint256"}],
-      "name":"getBatchHistory",
-      "outputs":[
-        {"internalType":"uint256","name":"_batchId","type":"uint256"},
-        {"internalType":"string","name":"productName","type":"string"},
-        {"internalType":"uint256","name":"quantity","type":"uint256"},
-        {"internalType":"address","name":"producer","type":"address"},
-        {"internalType":"address","name":"currentOwner","type":"address"},
-        {"internalType":"bool","name":"arrived","type":"bool"},
-        {"internalType":"bool","name":"passedInspection","type":"bool"},
-        {"internalType":"uint8","name":"stage","type":"uint8"},
-        {"internalType":"address[]","name":"ownershipHistory","type":"address[]"},
+      "inputs": [
+        { "internalType": "uint256", "name": "batchId", "type": "uint256" },
+        { "internalType": "int256", "name": "temperature", "type": "int256" },
+        { "internalType": "int256", "name": "humidity", "type": "int256" },
+        { "internalType": "string", "name": "location", "type": "string" }
+      ],
+      "name": "addSensorData",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    { "inputs": [], "stateMutability": "nonpayable", "type": "constructor" },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true, "internalType": "uint256", "name": "batchId", "type": "uint256" },
+        { "indexed": false, "internalType": "bool", "name": "passedInspection", "type": "bool" },
+        { "indexed": true, "internalType": "address", "name": "retailer", "type": "address" }
+      ],
+      "name": "BatchArrived",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true, "internalType": "uint256", "name": "batchId", "type": "uint256" },
+        { "indexed": false, "internalType": "string", "name": "productName", "type": "string" },
+        { "indexed": false, "internalType": "uint256", "name": "quantity", "type": "uint256" },
+        { "indexed": true, "internalType": "address", "name": "producer", "type": "address" }
+      ],
+      "name": "BatchCreated",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        { "internalType": "uint256", "name": "batchId", "type": "uint256" },
+        { "internalType": "string", "name": "productName", "type": "string" },
+        { "internalType": "uint256", "name": "quantity", "type": "uint256" }
+      ],
+      "name": "createBatch",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [{ "indexed": false, "internalType": "address", "name": "distributor", "type": "address" }],
+      "name": "DistributorRegistered",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        { "internalType": "uint256", "name": "batchId", "type": "uint256" },
+        { "internalType": "bool", "name": "passedInspection", "type": "bool" }
+      ],
+      "name": "markAsArrived",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true, "internalType": "uint256", "name": "batchId", "type": "uint256" },
+        { "indexed": true, "internalType": "address", "name": "from", "type": "address" },
+        { "indexed": true, "internalType": "address", "name": "to", "type": "address" }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [{ "indexed": false, "internalType": "address", "name": "producer", "type": "address" }],
+      "name": "ProducerRegistered",
+      "type": "event"
+    },
+    {
+      "inputs": [{ "internalType": "address", "name": "distributor", "type": "address" }],
+      "name": "registerDistributor",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "address", "name": "producer", "type": "address" }],
+      "name": "registerProducer",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "address", "name": "retailer", "type": "address" }],
+      "name": "registerRetailer",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "address", "name": "transporter", "type": "address" }],
+      "name": "registerTransporter",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [{ "indexed": false, "internalType": "address", "name": "retailer", "type": "address" }],
+      "name": "RetailerRegistered",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true, "internalType": "uint256", "name": "batchId", "type": "uint256" },
+        { "indexed": false, "internalType": "int256", "name": "temperature", "type": "int256" },
+        { "indexed": false, "internalType": "int256", "name": "humidity", "type": "int256" },
+        { "indexed": false, "internalType": "string", "name": "location", "type": "string" },
+        { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" },
+        { "indexed": true, "internalType": "address", "name": "transporter", "type": "address" }
+      ],
+      "name": "SensorLogged",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        { "internalType": "uint256", "name": "batchId", "type": "uint256" },
+        { "internalType": "address", "name": "newOwner", "type": "address" }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [{ "indexed": false, "internalType": "address", "name": "transporter", "type": "address" }],
+      "name": "TransporterRegistered",
+      "type": "event"
+    },
+    { "inputs": [], "name": "batchCount", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "name": "batchExists", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [{ "internalType": "uint256", "name": "index", "type": "uint256" }], "name": "batchIdAt", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [{ "internalType": "address", "name": "", "type": "address" }], "name": "distributors", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+    {
+      "inputs": [{ "internalType": "uint256", "name": "batchId", "type": "uint256" }],
+      "name": "getBatchHistory",
+      "outputs": [
+        { "internalType": "uint256", "name": "_batchId", "type": "uint256" },
+        { "internalType": "string", "name": "productName", "type": "string" },
+        { "internalType": "uint256", "name": "quantity", "type": "uint256" },
+        { "internalType": "address", "name": "producer", "type": "address" },
+        { "internalType": "address", "name": "currentOwner", "type": "address" },
+        { "internalType": "bool", "name": "arrived", "type": "bool" },
+        { "internalType": "bool", "name": "passedInspection", "type": "bool" },
+        { "internalType": "enum FreshChain.Stage", "name": "stage", "type": "uint8" },
+        { "internalType": "address[]", "name": "ownershipHistory", "type": "address[]" },
         {
-          "components":[
-            {"internalType":"int256","name":"temperature","type":"int256"},
-            {"internalType":"int256","name":"humidity","type":"int256"},
-            {"internalType":"string","name":"location","type":"string"},
-            {"internalType":"uint256","name":"timestamp","type":"uint256"}
+          "components": [
+            { "internalType": "int256", "name": "temperature", "type": "int256" },
+            { "internalType": "int256", "name": "humidity", "type": "int256" },
+            { "internalType": "string", "name": "location", "type": "string" },
+            { "internalType": "uint256", "name": "timestamp", "type": "uint256" }
           ],
-          "internalType":"tuple[]",
-          "name":"sensorLogs",
-          "type":"tuple[]"
+          "internalType": "struct FreshChain.SensorData[]",
+          "name": "sensorLogs",
+          "type": "tuple[]"
         }
       ],
-      "stateMutability":"view",
-      "type":"function"
-    }
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint256", "name": "batchId", "type": "uint256" }],
+      "name": "getBatchInfo",
+      "outputs": [
+        { "internalType": "string", "name": "productName", "type": "string" },
+        { "internalType": "uint256", "name": "quantity", "type": "uint256" },
+        { "internalType": "address", "name": "producer", "type": "address" },
+        { "internalType": "address", "name": "currentOwner", "type": "address" },
+        { "internalType": "bool", "name": "arrived", "type": "bool" },
+        { "internalType": "bool", "name": "passedInspection", "type": "bool" },
+        { "internalType": "enum FreshChain.Stage", "name": "stage", "type": "uint8" }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    { "inputs": [{ "internalType": "uint256", "name": "batchId", "type": "uint256" }], "name": "getOwnershipHistory", "outputs": [{ "internalType": "address[]", "name": "", "type": "address[]" }], "stateMutability": "view", "type": "function" },
+    {
+      "inputs": [{ "internalType": "uint256", "name": "batchId", "type": "uint256" }],
+      "name": "getSensorLogs",
+      "outputs": [
+        {
+          "components": [
+            { "internalType": "int256", "name": "temperature", "type": "int256" },
+            { "internalType": "int256", "name": "humidity", "type": "int256" },
+            { "internalType": "string", "name": "location", "type": "string" },
+            { "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+          ],
+          "internalType": "struct FreshChain.SensorData[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    { "inputs": [], "name": "listBatches", "outputs": [{ "internalType": "uint256[]", "name": "", "type": "uint256[]" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [], "name": "owner", "outputs": [{ "internalType": "address", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [{ "internalType": "address", "name": "", "type": "address" }], "name": "producers", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [{ "internalType": "address", "name": "", "type": "address" }], "name": "retailers", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [{ "internalType": "address", "name": "", "type": "address" }], "name": "transporters", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" }
   ];
+
+  let provider, signer, contract, account, net;
+  let html5Qr = null;
 
   const $ = (id) => document.getElementById(id);
 
-  function setStatus(state, main, sub=""){
-    $("statText").innerText = main;
-    $("statSub").innerText = sub;
-    const dot = $("statDot");
+  function setStatus(state, main, sub="") {
+    $("statusText").innerText = main;
+    $("statusSub").innerText = sub;
+    const dot = $("connDot");
     dot.classList.remove("ok","bad");
-    if(state === "ok") dot.classList.add("ok");
-    else if(state === "bad") dot.classList.add("bad");
+    dot.classList.add(state === "ok" ? "ok" : state === "bad" ? "bad" : "");
+  }
+
+  function log(line) {
+    const pre = $("log");
+    const ts = new Date().toLocaleString();
+    pre.textContent = (pre.textContent ? pre.textContent + "\n" : "")
+      + `[${ts}] ${line}`;
+    pre.scrollTop = pre.scrollHeight;
+  }
+
+  function requireConnected(){
+    if(!contract || !signer) throw new Error("Wallet not connected");
+  }
+
+  function ensureSepolia(){
+    if(!net || net.chainId !== SEPOLIA_CHAIN_ID){
+      throw new Error("Wrong network. Please switch to Sepolia.");
+    }
+  }
+
+  // --------------------------
+  // ✅ V2 Login Gate
+  // --------------------------
+  function updateGateUI(){
+    const selectedRole = $("userType").value;
+    const mustLogin = (selectedRole !== "customer"); // customer can view without login (public page exists)
+
+    $("loginBadge").innerText = mustLogin
+      ? (isLoggedIn && loggedRole === selectedRole ? `Login: OK as ${loggedRole}` : `Login required for ${selectedRole}`)
+      : "Login: not required for Customer";
+
+    // Gate buttons (write actions)
+    const allow = (!mustLogin) || (isLoggedIn && loggedRole === selectedRole);
+
+    // All gated buttons have class "gate"
+    document.querySelectorAll(".gate").forEach(btn => {
+      btn.disabled = !allow;
+    });
+
+    if(!allow && mustLogin){
+      $("loginNote").innerText = `Auto-filled demo credentials for ${selectedRole}. Click Login to enable actions.`;
+    }
+  }
+
+  function autofillDemoCreds(){
+    const role = $("userType").value;
+    const c = DEMO[role] || {id:"",pw:""};
+    $("userId").value = c.id;
+    $("userPw").value = c.pw;
+  }
+
+  function applyRoleUI(){
+    const role = $("userType").value;
+
+    ["secAdmin","secProducer","secTransporter","secRetailer","secCustomer","secTransfer"]
+      .forEach(id => $(id).classList.add("hide"));
+
+    if(role === "admin") $("secAdmin").classList.remove("hide");
+    if(role === "producer"){
+      $("secProducer").classList.remove("hide");
+      $("secTransfer").classList.remove("hide");
+    }
+    if(role === "transporter"){
+      $("secTransporter").classList.remove("hide");
+      $("secTransfer").classList.remove("hide");
+    }
+    if(role === "distributor"){
+      $("secTransfer").classList.remove("hide");
+    }
+    if(role === "retailer"){
+      $("secRetailer").classList.remove("hide");
+    }
+    if(role === "customer"){
+      $("secCustomer").classList.remove("hide");
+    }
+
+    // V2: auto-fill credentials
+    autofillDemoCreds();
+
+    // logout when switching role (keeps demo testing clean)
+    isLoggedIn = (role === "customer") ? true : false;
+    loggedRole = role;
+
+    updateGateUI();
+    log(`UI role switched: ${role} (auto-filled demo credentials).`);
+  }
+
+  function demoLogin(){
+    const role = $("userType").value;
+    if(role === "customer"){
+      isLoggedIn = true;
+      loggedRole = "customer";
+      $("loginNote").innerText = "Customer: login not required.";
+      updateGateUI();
+      return;
+    }
+
+    const id = $("userId").value.trim();
+    const pw = $("userPw").value.trim();
+    const expected = DEMO[role];
+
+    if(!id || !pw){
+      alert("Enter ID and PASSWORD (demo).");
+      return;
+    }
+    if(!expected || id !== expected.id || pw !== expected.pw){
+      isLoggedIn = false;
+      loggedRole = role;
+      updateGateUI();
+      alert("Invalid demo credentials. (Expected auto-filled values)");
+      return;
+    }
+
+    isLoggedIn = true;
+    loggedRole = role;
+    $("loginNote").innerText = `Demo login OK ✅ Role=${role}. Now you can press buttons.`;
+    updateGateUI();
+    log(`Demo login success as ${role} (id=${id}).`);
+  }
+
+  async function connectWallet(){
+    try{
+      if(!window.ethereum){
+        alert("MetaMask is not installed.");
+        return;
+      }
+
+      await window.ethereum.request({ method: "eth_requestAccounts" });
+
+      provider = new ethers.BrowserProvider(window.ethereum);
+      signer = await provider.getSigner();
+      account = await signer.getAddress();
+      net = await provider.getNetwork();
+
+      contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+      $("walletAddr").innerText = account;
+      $("networkName").innerText = net.name || "Unknown";
+      $("chainId").innerText = net.chainId.toString();
+      $("contractAddr").innerText = CONTRACT_ADDRESS;
+
+      if(net.chainId === SEPOLIA_CHAIN_ID){
+        setStatus("ok","Connected","Correct network: Sepolia ✅");
+      }else{
+        setStatus("bad","Connected","Wrong network: not Sepolia ❌");
+      }
+
+      log(`Connected: ${account} on chainId=${net.chainId}`);
+      applyRoleUI();
+
+      window.ethereum.on("accountsChanged", () => location.reload());
+      window.ethereum.on("chainChanged", () => location.reload());
+
+    }catch(e){
+      console.error(e);
+      setStatus("bad","Error", e.message || "connect error");
+      alert("Error connecting wallet: " + (e.message || e));
+    }
+  }
+
+  async function switchToSepolia(){
+    try{
+      if(!window.ethereum) return alert("MetaMask is required.");
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0xaa36a7" }]
+      });
+    }catch(e){
+      alert("Failed to switch to Sepolia: " + (e.message || e));
+    }
+  }
+
+  function getHistoryLink(trackId){
+    const cid = CONTRACT_ADDRESS;
+    return `${SITE_BASE_URL}history.html?trackId=${encodeURIComponent(trackId)}&contract=${encodeURIComponent(cid)}`;
+  }
+
+  // ✅ LIST BATCHES now uses batchCount + listBatches + batchIdAt (all three)
+  async function loadBatches(){
+    try{
+      requireConnected(); ensureSepolia();
+
+      const total = await contract.batchCount();
+      $("batchTotal").innerText = total.toString();
+
+      // 1) listBatches
+      const ids = await contract.listBatches();
+      const fromList = (ids || []).map(x => x.toString());
+
+      // 2) batchIdAt verification (canonical listing by index)
+      const fromIndex = [];
+      for(let i=0; i<Number(total); i++){
+        const idAt = await contract.batchIdAt(i);
+        fromIndex.push(idAt.toString());
+      }
+
+      // We'll display the index-based list (uses batchIdAt + batchCount)
+      const normalized = fromIndex;
+
+      const must = ["101","202","303"];
+      const ok = must.every(m => normalized.includes(m));
+      $("predefStatus").innerText = ok ? "OK ✅ (101,202,303 found)" : "Missing ❌ (check deploy)";
+
+      let out = "";
+      out += `FreshChain — LIST BATCHES (V2)\n`;
+      out += `========================================\n`;
+      out += `Contract: ${CONTRACT_ADDRESS}\n`;
+      out += `Total (batchCount): ${total}\n`;
+      out += `Verified by: listBatches + batchIdAt\n\n`;
+
+      out += `IDs (batchIdAt):\n`;
+      if(normalized.length === 0){
+        out += "No batches found.\n";
+      } else {
+        normalized.forEach((id, i) => {
+          const link = getHistoryLink(id);
+          out += `${String(i+1).padStart(2,"0")}. BatchID=${id} | PublicHistory: ${link}\n`;
+        });
+      }
+
+      out += `\nCross-check (listBatches):\n`;
+      out += `----------------------------------------\n`;
+      out += fromList.length ? fromList.join(", ") : "(empty)";
+      out += "\n";
+
+      $("batchListOut").textContent = out;
+      log(`Loaded batches: batchCount=${total} | indexList=${normalized.length} | listBatches=${fromList.length}`);
+    }catch(e){
+      console.error(e);
+      $("batchListOut").textContent = "Batch list error: " + (e.message || e);
+      log(`❌ loadBatches error: ${e.message || e}`);
+      alert("Load batches error: " + (e.message || e));
+    }
+  }
+
+  function showPredefined(){
+    const must = ["101","202","303"];
+    let out = "";
+    out += `Predefined Batches (V2)\n`;
+    out += `========================================\n`;
+    must.forEach((id, i) => {
+      out += `${i+1}. ${id} | PublicHistory: ${getHistoryLink(id)}\n`;
+    });
+    $("batchListOut").textContent = out;
+    $("predefStatus").innerText = "Expected: 101,202,303";
+    log("Displayed predefined batch shortcuts.");
+  }
+
+  async function registerRole(){
+    try{
+      requireConnected(); ensureSepolia();
+
+      const addr = $("roleAddress").value.trim();
+      const role = $("roleType").value;
+      if(!addr || !addr.startsWith("0x") || addr.length < 40) return alert("Enter a valid 0x address.");
+
+      let tx;
+      if(role === "producer") tx = await contract.registerProducer(addr);
+      if(role === "transporter") tx = await contract.registerTransporter(addr);
+      if(role === "distributor") tx = await contract.registerDistributor(addr);
+      if(role === "retailer") tx = await contract.registerRetailer(addr);
+
+      log(`Register ${role} -> ${addr} | tx: ${tx.hash}`);
+      setStatus("ok","Transaction sent","Waiting for confirmation…");
+      await tx.wait();
+      log(`✅ Confirmed: role ${role} registered for ${addr}`);
+      alert("Role registered ✅");
+    }catch(e){
+      console.error(e);
+      log(`❌ Register error: ${e.message || e}`);
+      alert("Register error: " + (e.message || e));
+    }
+  }
+
+  async function createBatch(){
+    try{
+      requireConnected(); ensureSepolia();
+
+      const batchId = BigInt($("batchIdCreate").value || "0");
+      const name = $("productName").value.trim();
+      const qty = BigInt($("quantity").value || "0");
+
+      if(batchId <= 0n) return alert("Batch ID must be > 0.");
+      if(!name) return alert("Product name cannot be empty.");
+      if(qty <= 0n) return alert("Quantity must be > 0.");
+
+      const tx = await contract.createBatch(batchId, name, qty);
+      log(`CreateBatch #${batchId} (${name}, qty=${qty}) | tx: ${tx.hash}`);
+      setStatus("ok","Transaction sent","Waiting for confirmation…");
+      await tx.wait();
+
+      log(`✅ BatchCreated: #${batchId}`);
+      alert(`Batch created ✅ ID: ${batchId}`);
+    }catch(e){
+      console.error(e);
+      log(`❌ CreateBatch error: ${e.message || e}`);
+      alert("CreateBatch error: " + (e.message || e));
+    }
+  }
+
+  async function transferOwnership(){
+    try{
+      requireConnected(); ensureSepolia();
+
+      const batchId = BigInt($("batchIdTransfer").value || "0");
+      const newOwner = $("newOwner").value.trim();
+      if(batchId <= 0n) return alert("Enter Batch ID.");
+      if(!newOwner || !newOwner.startsWith("0x") || newOwner.length < 40) return alert("New owner address is invalid.");
+
+      const tx = await contract.transferOwnership(batchId, newOwner);
+      log(`TransferOwnership #${batchId} -> ${newOwner} | tx: ${tx.hash}`);
+      setStatus("ok","Transaction sent","Waiting for confirmation…");
+      await tx.wait();
+
+      log(`✅ OwnershipTransferred: #${batchId} -> ${newOwner}`);
+      alert("Transfer success ✅");
+    }catch(e){
+      console.error(e);
+      log(`❌ Transfer error: ${e.message || e}`);
+      alert("Transfer error: " + (e.message || e));
+    }
+  }
+
+  async function addSensor(){
+    try{
+      requireConnected(); ensureSepolia();
+
+      const batchId = BigInt($("batchIdSensor").value || "0");
+      const t = Number($("temp").value);
+      const h = Number($("hum").value);
+      const loc = $("location").value.trim();
+
+      if(batchId <= 0n) return alert("Enter Batch ID.");
+      if(!Number.isFinite(t) || !Number.isFinite(h)) return alert("Temperature and humidity must be numbers.");
+      if(t < -10 || t > 40) return alert("Temperature must be between -10 and 40.");
+      if(h < 0 || h > 40) return alert("Humidity must be between 0 and 40.");
+      if(!loc) return alert("Location cannot be empty.");
+
+      const tx = await contract.addSensorData(batchId, BigInt(Math.trunc(t)), BigInt(Math.trunc(h)), loc);
+      log(`SensorLogged #${batchId} (t=${t}, h=${h}, loc=${loc}) | tx: ${tx.hash}`);
+      setStatus("ok","Transaction sent","Waiting for confirmation…");
+      await tx.wait();
+
+      log(`✅ SensorLogged: #${batchId}`);
+      alert("Sensor data added ✅");
+    }catch(e){
+      console.error(e);
+      log(`❌ Sensor error: ${e.message || e}`);
+      alert("Sensor error: " + (e.message || e));
+    }
+  }
+
+  async function markArrived(){
+    try{
+      requireConnected(); ensureSepolia();
+
+      const batchId = BigInt($("batchIdArrived").value || "0");
+      const passed = $("passedInspection").value === "true";
+
+      if(batchId <= 0n) return alert("Enter Batch ID.");
+
+      const tx = await contract.markAsArrived(batchId, passed);
+      log(`BatchArrived #${batchId} passed=${passed} | tx: ${tx.hash}`);
+      setStatus("ok","Transaction sent","Waiting for confirmation…");
+      await tx.wait();
+
+      log(`✅ BatchArrived confirmed: #${batchId} passed=${passed}`);
+      alert("Marked as arrived ✅");
+    }catch(e){
+      console.error(e);
+      log(`❌ Arrived error: ${e.message || e}`);
+      alert("Arrived error: " + (e.message || e));
+    }
   }
 
   function stageToText(stage){
@@ -187,60 +958,14 @@
     return map[Number(stage)] ?? `Stage(${stage})`;
   }
 
-  function getParams(){
-    const u = new URL(window.location.href);
-    return {
-      trackId: u.searchParams.get("trackId") || "",
-      contract: u.searchParams.get("contract") || ""
-    };
-  }
-
-  function useDefaults(){
-    $("trackId").value = "101";
-    $("contractAddr").value = DEFAULT_CONTRACT;
-    $("showTrack").innerText = "101";
-    $("showContract").innerText = DEFAULT_CONTRACT;
-    setStatus("warn","Defaults loaded","Click “Load History”.");
-  }
-
-  async function makeProviderWithFallback(){
-    let lastErr = null;
-    for(const url of RPC_URLS){
-      try{
-        const p = new ethers.JsonRpcProvider(url, SEPOLIA_CHAIN_ID);
-        const net = await p.getNetwork();
-        if(net.chainId !== SEPOLIA_CHAIN_ID) throw new Error("Not Sepolia");
-        $("rpcUsed").innerText = url;
-        return p;
-      }catch(e){
-        lastErr = e;
-      }
-    }
-    throw lastErr || new Error("All RPC endpoints failed");
-  }
-
-  async function loadHistory(){
+  async function viewFullHistory(){
     try{
-      const trackIdRaw = ($("trackId").value || "").trim();
-      const contractAddr = ($("contractAddr").value || "").trim();
+      requireConnected(); ensureSepolia();
 
-      if(!trackIdRaw) return alert("Enter trackId (Batch ID), e.g. 101");
-      if(!contractAddr || !contractAddr.startsWith("0x") || contractAddr.length < 40){
-        return alert("Enter a valid contract address (0x...)");
-      }
+      const batchId = BigInt($("batchIdView").value || "0");
+      if(batchId <= 0n) return alert("Enter Batch ID.");
 
-      $("showTrack").innerText = trackIdRaw;
-      $("showContract").innerText = contractAddr;
-
-      setStatus("warn","Loading…","Trying RPC endpoints (fallback).");
-      $("out").textContent = "Loading…";
-      $("rpcUsed").innerText = "—";
-
-      const provider = await makeProviderWithFallback();
-      const c = new ethers.Contract(contractAddr, ABI_READ, provider);
-
-      const trackId = BigInt(trackIdRaw);
-      const data = await c.getBatchHistory(trackId);
+      const data = await contract.getBatchHistory(batchId);
 
       const _batchId = data[0];
       const productName = data[1];
@@ -254,23 +979,23 @@
       const sensorLogs = data[9];
 
       let out = "";
-      out += `FreshChain — Public Full History\n`;
+      out += `FreshChain — Full History (dApp)\n`;
       out += `========================================\n`;
-      out += `Contract     : ${contractAddr}\n`;
-      out += `Track ID     : ${_batchId}\n`;
-      out += `Product Name : ${productName}\n`;
-      out += `Quantity     : ${quantity}\n`;
-      out += `Producer     : ${producer}\n`;
-      out += `CurrentOwner : ${currentOwner}\n`;
-      out += `Stage        : ${stageToText(stage)}\n`;
-      out += `Arrived      : ${arrived ? "YES ✅" : "NO ⏳"}\n`;
-      out += `Inspection   : ${arrived ? (passedInspection ? "PASSED ✅" : "FAILED ❌") : "—"}\n`;
+      out += `Batch ID       : ${_batchId}\n`;
+      out += `Product Name   : ${productName}\n`;
+      out += `Quantity       : ${quantity}\n`;
+      out += `Producer       : ${producer}\n`;
+      out += `Current Owner  : ${currentOwner}\n`;
+      out += `Stage          : ${stageToText(stage)}\n`;
+      out += `Arrived        : ${arrived ? "YES ✅" : "NO ⏳"}\n`;
+      out += `Inspection     : ${arrived ? (passedInspection ? "PASSED ✅" : "FAILED ❌") : "—"}\n`;
+      out += `Public History : ${getHistoryLink(_batchId.toString())}\n`;
 
       out += `\nOwnership History\n`;
       out += `----------------------------------------\n`;
       if(!ownershipHistory || ownershipHistory.length === 0){
         out += `No ownership history.\n`;
-      } else {
+      }else{
         ownershipHistory.forEach((a, i) => {
           const isLast = i === ownershipHistory.length - 1;
           out += `${String(i+1).padStart(2,"0")}. ${a}${isLast ? "  (Current)" : ""}\n`;
@@ -281,40 +1006,136 @@
       out += `----------------------------------------\n`;
       if(!sensorLogs || sensorLogs.length === 0){
         out += `No sensor logs.\n`;
-      } else {
+      }else{
         sensorLogs.forEach((s, i) => {
           const temp = s.temperature ?? s[0];
-          const hum  = s.humidity ?? s[1];
-          const loc  = s.location ?? s[2];
-          const ts   = s.timestamp ?? s[3];
+          const hum = s.humidity ?? s[1];
+          const loc = s.location ?? s[2];
+          const ts = s.timestamp ?? s[3];
           const dt = new Date(Number(ts) * 1000).toLocaleString();
           out += `#${i+1} | Temp: ${temp}°C | Hum: ${hum}% | Loc: ${loc} | Time: ${dt}\n`;
         });
       }
 
-      $("out").textContent = out;
-      setStatus("ok","Loaded ✅","History successfully read from blockchain.");
+      $("output").textContent = out;
+      log(`Viewed full history for batch #${batchId}`);
     }catch(e){
       console.error(e);
-      $("out").textContent = "Error: " + (e?.message || e);
-      setStatus("bad","Error ❌", e?.message || "Failed to load history.");
+      $("output").textContent = "Error reading history: " + (e.message || e);
+      log(`❌ View error: ${e.message || e}`);
+      alert("View error: " + (e.message || e));
     }
   }
 
-  (function init(){
-    const p = getParams();
-    $("trackId").value = p.trackId || "";
-    $("contractAddr").value = p.contract || DEFAULT_CONTRACT;
+  function copyOutput(){
+    const text = $("output").textContent || "";
+    navigator.clipboard.writeText(text).then(() => {
+      log("Output copied to clipboard ✅");
+      alert("Copied ✅");
+    }).catch(() => alert("Copy failed."));
+  }
 
-    $("showTrack").innerText = $("trackId").value || "—";
-    $("showContract").innerText = $("contractAddr").value || "—";
-    $("rpcUsed").innerText = "—";
+  function generateQR(){
+    const id = ($("batchIdQR").value || "").trim();
+    if(!id) return alert("Enter Batch ID.");
+    $("qrcode").innerHTML = "";
+    const link = getHistoryLink(id);
+    new QRCode($("qrcode"), { text: link, width:160, height:160 });
+    log(`QR generated for trackId=${id} -> ${link}`);
+  }
 
-    setStatus("warn","Ready","If opened from QR, it will auto-load.");
-    if(p.trackId){
-      loadHistory().catch(()=>{});
+  async function startScan(){
+    try{
+      if(html5Qr) return;
+
+      html5Qr = new Html5Qrcode("reader");
+      $("btnStartScan").disabled = true;
+      $("btnStopScan").disabled = false;
+      $("scanHint").innerHTML = "Camera started. Scan a QR code…";
+
+      await html5Qr.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        (decodedText) => {
+          const cleaned = decodedText.trim();
+
+          let trackId = cleaned;
+          try{
+            const u = new URL(cleaned, window.location.href);
+            const t = u.searchParams.get("trackId");
+            if(t) trackId = t;
+          }catch(_){}
+
+          $("batchIdView").value = trackId;
+          $("scanHint").innerHTML = `Scanned ✅ Track ID: <b>${trackId}</b>`;
+          log(`QR scanned -> trackId=${trackId} (raw=${cleaned})`);
+        }
+      );
+    }catch(e){
+      console.error(e);
+      alert("Scan start error: " + (e.message || e));
+      $("btnStartScan").disabled = false;
+      $("btnStopScan").disabled = true;
+      html5Qr = null;
     }
-  })();
+  }
+
+  async function stopScan(){
+    try{
+      if(!html5Qr) return;
+      await html5Qr.stop();
+      await html5Qr.clear();
+      html5Qr = null;
+
+      $("btnStartScan").disabled = false;
+      $("btnStopScan").disabled = true;
+      $("scanHint").innerText = "Stopped.";
+      log("QR scan stopped.");
+    }catch(e){
+      console.error(e);
+      alert("Stop scan error: " + (e.message || e));
+    }
+  }
+
+  async function readMyRole(){
+    try{
+      requireConnected(); ensureSepolia();
+      const p = await contract.producers(account);
+      const t = await contract.transporters(account);
+      const d = await contract.distributors(account);
+      const r = await contract.retailers(account);
+
+      const roles = [];
+      if(p) roles.push("Producer");
+      if(t) roles.push("Transporter");
+      if(d) roles.push("Distributor");
+      if(r) roles.push("Retailer");
+      if(roles.length === 0) roles.push("Customer (view-only)");
+
+      alert("Your role(s): " + roles.join(", "));
+      log(`MyRole: ${roles.join(", ")}`);
+    }catch(e){
+      console.error(e);
+      alert("Role read error: " + (e.message || e));
+    }
+  }
+
+  async function pingContract(){
+    try{
+      requireConnected(); ensureSepolia();
+      await contract.owner();
+      alert("Contract OK ✅");
+      log("Contract ping OK ✅");
+    }catch(e){
+      console.error(e);
+      alert("Contract ping failed: " + (e.message || e));
+      log("❌ Contract ping failed.");
+    }
+  }
+
+  $("contractAddr").innerText = CONTRACT_ADDRESS;
+  setStatus("warn","Not connected","Start with Connect Wallet.");
+  applyRoleUI(); // sets initial role + auto-fill
 </script>
 </body>
 </html>
